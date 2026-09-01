@@ -1,15 +1,46 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { fetchAssessment } from '../api/assessmentsApi.js';
+import { fetchAssessment, fetchAssessmentStatus, retryAssessmentSection } from '../api/assessmentsApi.js';
+import AssessmentGenerationProgress from '../components/AssessmentGenerationProgress.jsx';
 import FormError from '../components/FormError.jsx';
 
 export default function AssessmentPreviewPage() {
   const { assessmentId } = useParams();
   const [assessment, setAssessment] = useState(null);
+  const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
-  useEffect(() => { fetchAssessment(assessmentId).then(setAssessment).catch(setError); }, [assessmentId]);
-  if (error) return <section className="mx-auto max-w-3xl px-6 py-16"><FormError error={error} /></section>;
-  if (!assessment) return <p className="p-16 text-center text-slate-600">Loading assessment…</p>;
+  const [pollVersion, setPollVersion] = useState(0);
+  const [retrying, setRetrying] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    let timer;
+    const poll = async () => {
+      try {
+        const next = await fetchAssessmentStatus(assessmentId);
+        if (cancelled) return;
+        setProgress(next);
+        setError(null);
+        if (next.status === 'ready') {
+          const ready = await fetchAssessment(assessmentId);
+          if (!cancelled) setAssessment(ready);
+        } else if (next.status === 'generating') timer = setTimeout(poll, 1500);
+      } catch (requestError) { if (!cancelled) setError(requestError); }
+    };
+    poll();
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [assessmentId, pollVersion]);
+  const retry = async (sectionName) => {
+    setRetrying(sectionName);
+    setError(null);
+    try {
+      setProgress(await retryAssessmentSection(assessmentId, sectionName));
+      setPollVersion((value) => value + 1);
+    } catch (requestError) { setError(requestError); }
+    finally { setRetrying(null); }
+  };
+  if (error && !progress) return <section className="mx-auto max-w-3xl px-6 py-16"><FormError error={error} /></section>;
+  if (!progress) return <p className="p-16 text-center text-slate-600">Loading generation progress…</p>;
+  if (progress.status !== 'ready' || !assessment) return <><AssessmentGenerationProgress progress={progress} onRetry={retry} retrying={retrying} />{error && <div className="mx-auto max-w-3xl px-6"><FormError error={error} /></div>}</>;
 
   const categoryCount = (category) => assessment.blueprint.filter((section) => section.category === category).reduce((sum, section) => sum + section.questionCount, 0);
   const difficulty = assessment.blueprint.reduce((totals, section) => {

@@ -10,6 +10,7 @@ import healthRoutes from './routes/healthRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
 import roleRoutes from './routes/roleRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/jobs', jobRoutes);
 app.use('/api/v1/assessments', assessmentRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

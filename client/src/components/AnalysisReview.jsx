@@ -12,7 +12,7 @@ function ListSection({ title, items }) {
 
 ListSection.propTypes = { title: PropTypes.string.isRequired, items: PropTypes.arrayOf(PropTypes.string).isRequired };
 
-export default function AnalysisReview({ jobProfile }) {
+export default function AnalysisReview({ jobProfile, showAssessmentAction = true }) {
   const { analysis } = jobProfile;
   const general = analysis.recommendedSections.filter((section) => section.category === 'general');
   const specific = analysis.recommendedSections.filter((section) => section.category === 'job_specific');
@@ -40,9 +40,9 @@ export default function AnalysisReview({ jobProfile }) {
       <ListSection title="Likely interview topics" items={analysis.likelyInterviewTopics} />
       {sectionGroup('General Interview Sections', general)}
       {sectionGroup('Job-Specific Interview Sections', specific)}
-      <Link className="inline-block rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white" to={`/jobs/${jobProfile._id}/assessment-setup`}>Continue to Assessment Setup</Link>
+      {showAssessmentAction && <Link className="inline-block rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white" to={`/jobs/${jobProfile._id}/assessment-setup`}>Continue to Assessment Setup</Link>}
     </div>
   );
 }
 
-AnalysisReview.propTypes = { jobProfile: PropTypes.object.isRequired };
+AnalysisReview.propTypes = { jobProfile: PropTypes.object.isRequired, showAssessmentAction: PropTypes.bool };

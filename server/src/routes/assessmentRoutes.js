@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { create, getOne, getQuestion, getQuestionAtIndex, getQuestions, putAnswer, start, status, submit, updatePosition } from '../controllers/assessmentController.js';
+import { create, getOne, getQuestion, getQuestionAtIndex, getQuestions, putAnswer, recent, results, retryFeedback, retrySection, reviewQuestions, score, start, status, submit, updatePosition } from '../controllers/assessmentController.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { validateBody } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -8,7 +8,9 @@ import { createAssessmentSchema, saveAnswerSchema, updatePositionSchema } from '
 const router = Router();
 router.use(asyncHandler(authenticate));
 router.post('/', validateBody(createAssessmentSchema), asyncHandler(create));
+router.get('/recent', asyncHandler(recent));
 router.get('/:id/status', asyncHandler(status));
+router.post('/:id/sections/:sectionKey/retry', asyncHandler(retrySection));
 router.get('/:id/questions', asyncHandler(getQuestions));
 router.post('/:id/start', asyncHandler(start));
 router.get('/:id/questions/by-index/:index', asyncHandler(getQuestionAtIndex));
@@ -16,5 +18,9 @@ router.get('/:id/questions/:questionId', asyncHandler(getQuestion));
 router.put('/:id/answers/:questionId', validateBody(saveAnswerSchema), asyncHandler(putAnswer));
 router.patch('/:id/progress', validateBody(updatePositionSchema), asyncHandler(updatePosition));
 router.post('/:id/submit', asyncHandler(submit));
+router.post('/:id/score', asyncHandler(score));
+router.get('/:id/results', asyncHandler(results));
+router.get('/:id/results/questions', asyncHandler(reviewQuestions));
+router.post('/:id/results/feedback/retry', asyncHandler(retryFeedback));
 router.get('/:id', asyncHandler(getOne));
 export default router;

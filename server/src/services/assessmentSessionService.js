@@ -1,4 +1,5 @@
 import { serializeAssessmentSession, serializePublicQuestion } from '../serializers/assessmentSerializer.js';
+import { Assessment } from '../models/Assessment.js';
 import { AppError } from '../utils/AppError.js';
 import { getOwnedAssessment } from './assessmentService.js';
 
@@ -54,7 +55,7 @@ export async function getQuestionByIndex(userId, assessmentId, indexValue) {
   return { index, question: serializePublicQuestion(assessment.questions[index]) };
 }
 
-export async function saveAnswer(userId, assessmentId, questionId, answerValue) {
+export async function saveAnswer(userId, assessmentId, questionId, answerValue, answerVersion = 0) {
   const assessment = await getOwnedAssessment(userId, assessmentId);
   ensureInProgress(assessment);
   const question = findQuestion(assessment, questionId);
@@ -66,35 +67,43 @@ export async function saveAnswer(userId, assessmentId, questionId, answerValue) 
     throw new AppError('Select one of the available options.', 400, 'INVALID_ANSWER_OPTION');
   }
 
-  const existing = assessment.answers.find((item) => item.questionId === questionId);
   const answeredAt = new Date();
-  if (existing) {
-    existing.answer = question.type === 'short_answer' ? answer : answerValue;
-    existing.answeredAt = answeredAt;
-  } else {
-    assessment.answers.push({ questionId, answer: question.type === 'short_answer' ? answer : answerValue, answeredAt });
+  const storedAnswer = question.type === 'short_answer' ? answer : answerValue;
+  const replaceExisting = () => Assessment.updateOne(
+    { _id: assessment.id, userId, status: 'in_progress', answers: { $elemMatch: { questionId, version: { $lte: answerVersion } } } },
+    { $set: { 'answers.$[saved].answer': storedAnswer, 'answers.$[saved].answeredAt': answeredAt, 'answers.$[saved].version': answerVersion } },
+    { arrayFilters: [{ 'saved.questionId': questionId, 'saved.version': { $lte: answerVersion } }] },
+  );
+  let write = await replaceExisting();
+  if (!write.modifiedCount) {
+    write = await Assessment.updateOne(
+      { _id: assessment.id, userId, status: 'in_progress', 'answers.questionId': { $ne: questionId } },
+      { $push: { answers: { questionId, answer: storedAnswer, answeredAt, version: answerVersion } } },
+    );
+    if (!write.modifiedCount) await replaceExisting();
   }
-  const questionIndex = assessment.questions.findIndex((item) => item.questionId === questionId);
-  assessment.currentQuestionIndex = questionIndex;
-  await assessment.save();
+  const updated = await Assessment.findById(assessment.id);
   return {
     questionId,
     answeredAt,
-    answeredCount: assessment.answers.length,
-    unansweredCount: assessment.questions.length - assessment.answers.length,
-    progressPercentage: Math.round((assessment.answers.length / assessment.questions.length) * 100),
+    answeredCount: updated.answers.length,
+    unansweredCount: updated.questions.length - updated.answers.length,
+    progressPercentage: Math.round((updated.answers.length / updated.questions.length) * 100),
   };
 }
 
-export async function updateCurrentPosition(userId, assessmentId, currentQuestionIndex) {
+export async function updateCurrentPosition(userId, assessmentId, currentQuestionIndex, navigationVersion = 0) {
   const assessment = await getOwnedAssessment(userId, assessmentId);
   ensureInProgress(assessment);
   if (currentQuestionIndex >= assessment.questions.length) {
     throw new AppError('Question index is out of range.', 400, 'VALIDATION_ERROR');
   }
-  assessment.currentQuestionIndex = currentQuestionIndex;
-  await assessment.save();
-  return { currentQuestionIndex };
+  const updated = await Assessment.findOneAndUpdate(
+    { _id: assessment.id, userId, status: 'in_progress', navigationVersion: { $lte: navigationVersion } },
+    { $set: { currentQuestionIndex, navigationVersion } },
+    { new: true },
+  );
+  return updated ? { currentQuestionIndex } : { currentQuestionIndex: assessment.currentQuestionIndex, stale: true };
 }
 
 export async function submitAssessment(userId, assessmentId) {

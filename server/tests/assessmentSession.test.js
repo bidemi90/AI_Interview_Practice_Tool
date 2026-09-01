@@ -62,8 +62,8 @@ async function start(id = assessment.id) {
   return authorized(request(app).post(`/api/v1/assessments/${id}/start`));
 }
 
-async function answer(questionId, answerValue, id = assessment.id, authToken = token) {
-  return authorized(request(app).put(`/api/v1/assessments/${id}/answers/${questionId}`), authToken).send({ answer: answerValue });
+async function answer(questionId, answerValue, id = assessment.id, authToken = token, answerVersion) {
+  return authorized(request(app).put(`/api/v1/assessments/${id}/answers/${questionId}`), authToken).send({ answer: answerValue, ...(answerVersion === undefined ? {} : { answerVersion }) });
 }
 
 beforeAll(async () => {
@@ -144,6 +144,16 @@ describe('assessment session API', () => {
     expect(stored.answers[0].answer).toBe('git push');
   });
 
+  it('ignores a stale answer write so the latest selection wins', async () => {
+    await start();
+    await answer('question-one', 'git push', assessment.id, token, 2);
+    await answer('question-one', 'git status', assessment.id, token, 1);
+    const stored = await Assessment.findById(assessment.id);
+    expect(stored.answers).toHaveLength(1);
+    expect(stored.answers[0].answer).toBe('git push');
+    expect(stored.answers[0].version).toBe(2);
+  });
+
   it('saves a valid short answer', async () => {
     await start();
     const response = await answer('question-three', 'I gather evidence, test hypotheses, and verify the outcome.');
@@ -184,6 +194,14 @@ describe('assessment session API', () => {
     await start();
     const response = await authorized(request(app).patch(`/api/v1/assessments/${assessment.id}/progress`)).send({ currentQuestionIndex: 2 });
     expect(response.status).toBe(200);
+    expect((await Assessment.findById(assessment.id)).currentQuestionIndex).toBe(2);
+  });
+
+  it('ignores stale asynchronous navigation-position writes', async () => {
+    await start();
+    await authorized(request(app).patch(`/api/v1/assessments/${assessment.id}/progress`)).send({ currentQuestionIndex: 2, navigationVersion: 2 });
+    const stale = await authorized(request(app).patch(`/api/v1/assessments/${assessment.id}/progress`)).send({ currentQuestionIndex: 1, navigationVersion: 1 });
+    expect(stale.body.data.stale).toBe(true);
     expect((await Assessment.findById(assessment.id)).currentQuestionIndex).toBe(2);
   });
 

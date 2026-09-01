@@ -7,10 +7,12 @@ export const createAssessmentSchema = z.object({
 
 export const saveAnswerSchema = z.object({
   answer: z.string().max(5_000),
+  answerVersion: z.number().int().min(0).optional(),
 }).strict();
 
 export const updatePositionSchema = z.object({
   currentQuestionIndex: z.number().int().min(0),
+  navigationVersion: z.number().int().min(0).optional(),
 }).strict();
 
 const questionSchema = z.object({

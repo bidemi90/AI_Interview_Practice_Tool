@@ -7,6 +7,7 @@ vi.mock('../src/integrations/openRouter/openRouterClient.js', () => ({ requestCh
 
 import app from '../src/app.js';
 import { requestChatCompletion } from '../src/integrations/openRouter/openRouterClient.js';
+import { Assessment } from '../src/models/Assessment.js';
 import { JobProfile } from '../src/models/JobProfile.js';
 import { User } from '../src/models/User.js';
 import { signAccessToken } from '../src/utils/jwt.js';
@@ -39,13 +40,27 @@ async function createProfile(ownerId = user.id) {
   });
 }
 
+async function createAssessment(profile, status, options = {}) {
+  return Assessment.create({
+    userId: options.userId || user.id, jobProfileId: profile.id,
+    jobSnapshot: { jobTitle: analysis.jobTitle, sourceType: 'predefined_role' },
+    mode: options.mode || 'quick', status,
+    generationProgress: { completedSections: 1, totalSections: 1 },
+    blueprint: [{ section: 'React', category: 'job_specific', questionCount: 2, difficultyDistribution: { easy: 1, medium: 1 }, questionTypeDistribution: { multiple_choice: 2 } }],
+    questions: [], answers: options.answers || [],
+    ...(status === 'in_progress' ? { startedAt: new Date() } : {}),
+    ...(status === 'submitted' ? { startedAt: new Date(), submittedAt: new Date() } : {}),
+    ...(options.createdAt ? { createdAt: options.createdAt } : {}),
+  });
+}
+
 beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
   await mongoose.connect(mongoServer.getUri());
 });
 
 beforeEach(async () => {
-  await Promise.all([User.deleteMany({}), JobProfile.deleteMany({})]);
+  await Promise.all([User.deleteMany({}), JobProfile.deleteMany({}), Assessment.deleteMany({})]);
   user = await User.create({ name: 'Job User', email: 'jobs@example.com', passwordHash: 'unused-test-hash' });
   token = signAccessToken(user.id);
   requestChatCompletion.mockReset();
@@ -133,6 +148,48 @@ describe('roles and job analysis API', () => {
     const profile = await createProfile(other.id);
     const response = await authorized(request(app).get(`/api/v1/jobs/${profile.id}`));
     expect(response.status).toBe(404);
+  });
+
+  it('returns an empty assessment history for a JobProfile with no assessments', async () => {
+    const profile = await createProfile();
+    const response = await authorized(request(app).get(`/api/v1/jobs/${profile.id}/assessments`));
+    expect(response.status).toBe(200);
+    expect(response.body.data.assessments).toEqual([]);
+  });
+
+  it.each(['ready', 'in_progress', 'submitted', 'generation_failed'])('returns safe %s assessment state for its JobProfile', async (status) => {
+    const profile = await createProfile();
+    await createAssessment(profile, status, { answers: [{ questionId: 'one', answer: 'A', answeredAt: new Date() }] });
+    const response = await authorized(request(app).get(`/api/v1/jobs/${profile.id}/assessments`));
+    expect(response.status).toBe(200);
+    expect(response.body.data.assessments[0]).toMatchObject({ status, answeredQuestionCount: 1, totalQuestions: 2, progressPercentage: 50 });
+    const text = JSON.stringify(response.body);
+    for (const field of ['questions', 'answers', 'correctAnswer', 'explanation']) expect(text).not.toContain(field);
+  });
+
+  it('returns multiple assessments newest first and keeps submitted history available', async () => {
+    const profile = await createProfile();
+    const older = await createAssessment(profile, 'submitted', { mode: 'standard' });
+    await Assessment.updateOne({ _id: older.id }, { createdAt: new Date('2025-01-01') });
+    const newer = await createAssessment(profile, 'in_progress', { mode: 'full' });
+    await Assessment.updateOne({ _id: newer.id }, { createdAt: new Date('2025-02-01') });
+    const response = await authorized(request(app).get(`/api/v1/jobs/${profile.id}/assessments`));
+    expect(response.body.data.assessments.map((item) => item.assessmentId)).toEqual([newer.id, older.id]);
+    expect(response.body.data.assessments[1].status).toBe('submitted');
+  });
+
+  it('isolates job assessment history and recent assessments by owner', async () => {
+    const profile = await createProfile();
+    await createAssessment(profile, 'ready');
+    const other = await User.create({ name: 'Other User', email: 'assessment-other@example.com', passwordHash: 'unused' });
+    const otherProfile = await createProfile(other.id);
+    await createAssessment(otherProfile, 'submitted', { userId: other.id });
+    const forbidden = await authorized(request(app).get(`/api/v1/jobs/${otherProfile.id}/assessments`));
+    expect(forbidden.status).toBe(404);
+    const recent = await authorized(request(app).get('/api/v1/assessments/recent'));
+    expect(recent.status).toBe(200);
+    expect(recent.body.data.assessments).toHaveLength(1);
+    expect(recent.body.data.assessments[0].jobProfileId).toBe(profile.id);
   });
 
   it('deletes an owned job profile', async () => {

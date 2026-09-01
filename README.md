@@ -1,6 +1,6 @@
 # AI Interview Assessment Platform
 
-A job-seeker interview preparation platform. Phase 2 includes JWT authentication, profiles, job input, and structured OpenRouter job analysis. Assessment generation and dashboard analytics are not implemented yet.
+A job-seeker interview preparation platform with authentication, structured job analysis, generated assessments, deterministic scoring, adaptive section planning, and dashboard analytics.
 
 ## Project structure
 
@@ -53,12 +53,15 @@ On Windows PowerShell, use `Copy-Item` instead of `cp` if preferred. Never commi
 | `JWT_SECRET` | Strong secret reserved for Phase 1 authentication |
 | `JWT_EXPIRES_IN` | Future JWT lifetime, such as `1d` |
 | `OPENROUTER_API_KEY` | OpenRouter key reserved for a later phase |
-| `OPENROUTER_MODEL` | OpenRouter model identifier reserved for a later phase |
+| `OPENROUTER_MODEL` | OpenRouter model identifier used for AI analysis and question generation |
 | `OPENROUTER_BASE_URL` | OpenRouter API base URL |
 | `OPENROUTER_TIMEOUT_MS` | Per-request OpenRouter timeout; defaults to `120000` for slower free models |
+| `OPENROUTER_QUESTION_MAX_TOKENS` | Maximum output tokens for each question-generation batch; defaults to `4000` |
+| `AI_QUESTION_BATCH_SIZE` | Maximum questions requested per AI generation call; defaults to `3` |
+| `OPENROUTER_FEEDBACK_MODEL` | Optional model for short-answer grading and qualitative feedback; falls back to `OPENROUTER_MODEL` |
 | `CLIENT_URL` | Allowed frontend CORS origin, normally `http://localhost:5173` |
 
-OpenRouter values are recognized by configuration but Phase 0 makes no AI requests.
+OpenRouter requests use structured JSON mode where supported and are always validated by the backend.
 
 ## Phase 1 API
 
@@ -108,6 +111,14 @@ Phase 4 stores answers separately, supports idempotent resume, requires all ques
 Protected endpoints require `Authorization: Bearer <token>`. The V1 browser client keeps this short-lived access token in local storage. Refresh tokens are intentionally deferred.
 
 ## Development
+
+Rebuild derived section-performance aggregates from stored scored assessments with:
+
+```bash
+npm run rebuild-performance
+```
+
+The command is safe to rerun. See [Phase 6 adaptive learning](docs/phase-6-adaptive-learning.md) for formulas and allocation safeguards.
 
 Run both applications from the root:
 

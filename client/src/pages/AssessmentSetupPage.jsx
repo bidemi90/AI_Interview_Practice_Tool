@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createAssessment } from '../api/assessmentsApi.js';
-import { fetchJob } from '../api/jobsApi.js';
+import { fetchJob, getAssessmentPlan } from '../api/jobsApi.js';
 import FormError from '../components/FormError.jsx';
 
 const modes = [
@@ -17,10 +17,16 @@ export default function AssessmentSetupPage() {
   const [mode, setMode] = useState('standard');
   const [error, setError] = useState(null);
   const [generating, setGenerating] = useState(false);
+  const [plan, setPlan] = useState(null);
 
   useEffect(() => {
     fetchJob(jobProfileId).then(setJobProfile).catch(setError);
   }, [jobProfileId]);
+
+  useEffect(() => {
+    setPlan(null);
+    getAssessmentPlan(jobProfileId, mode).then(setPlan).catch(setError);
+  }, [jobProfileId, mode]);
 
   const generate = async () => {
     setGenerating(true);
@@ -52,8 +58,9 @@ export default function AssessmentSetupPage() {
       <div className="mt-8 grid gap-6 rounded-xl bg-white p-6 shadow-sm sm:grid-cols-2">{sectionList('General interview sections', general)}{sectionList('Job-specific interview sections', specific)}</div>
       <h2 className="mt-10 text-2xl font-bold text-slate-950">Choose an assessment mode</h2>
       <div className="mt-5 grid gap-4 md:grid-cols-3">{modes.map((item) => <label className={`cursor-pointer rounded-xl border p-5 ${mode === item.key ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 bg-white'}`} key={item.key}><input className="sr-only" type="radio" name="mode" value={item.key} checked={mode === item.key} onChange={(event) => setMode(event.target.value)} /><span className="text-lg font-semibold text-slate-950">{item.title}</span><span className="mt-2 block text-2xl font-bold text-indigo-600">{item.questions} Questions</span><span className="mt-2 block text-sm text-slate-600">{item.description}</span></label>)}</div>
+      {plan && <section className="mt-8 rounded-xl bg-white p-6 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-bold">Planned allocation</h2><span className="text-sm text-slate-500">{plan.totalQuestions} questions</span></div>{plan.adaptive && <p className="mt-3 rounded-lg bg-indigo-50 p-3 text-sm text-indigo-800">This assessment places slightly more emphasis on areas where you need more practice.</p>}<div className="mt-5 grid gap-6 md:grid-cols-2">{['general', 'job_specific'].map((category) => <div key={category}><h3 className="font-semibold capitalize">{category.replace('_', '-')}</h3><div className="mt-2 space-y-2">{plan.sections.filter((item) => item.category === category).map((item) => <div className="flex items-center justify-between gap-3 text-sm" key={item.section}><span>{item.section}{item.needsMorePractice && item.adaptiveInfluenced ? <span className="ml-2 text-amber-700">Needs more practice</span> : null}</span><strong>{item.questionCount}</strong></div>)}</div></div>)}</div></section>}
       <div className="mt-8"><FormError error={error} /></div>
-      <button className="mt-6 rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white disabled:opacity-50" disabled={generating} onClick={generate}>Generate Assessment</button>
+      <button className="mt-6 rounded-lg bg-indigo-600 px-5 py-3 font-semibold text-white disabled:opacity-50" disabled={generating || !plan} onClick={generate}>Generate Assessment</button>
     </section>
   );
 }

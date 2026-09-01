@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "lint": "eslint .",
     "test": "vitest run",
-    "check": "node --check src/server.js"
+    "check": "node --check src/server.js",
+    "rebuild-performance": "node src/scripts/rebuildPerformance.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

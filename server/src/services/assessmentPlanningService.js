@@ -6,6 +6,7 @@ const modeSettings = {
 
 const priorityWeight = { low: 1, medium: 2, high: 3 };
 const programmingPattern = /software|developer|engineer|programmer|frontend|backend|full[ -]?stack|web development/i;
+import { effectiveWeaknessWeight, normalizeSectionName } from '../utils/sectionPerformance.js';
 
 function allocateByWeight(total, entries, weightFor) {
   if (!entries.length) return [];
@@ -14,7 +15,8 @@ function allocateByWeight(total, entries, weightFor) {
     .slice(0, total);
   const allocations = selected.map((entry) => ({ entry, count: 1 }));
   let remaining = total - allocations.length;
-  const cap = selected.length === 1 ? total : selected.length === 2 ? Math.ceil(total * 0.6) : Math.ceil(total * 0.4);
+  const preferredCap = selected.length <= 2 ? total : Math.ceil(total * 0.35);
+  const cap = Math.max(preferredCap, Math.ceil(total / selected.length));
   while (remaining > 0) {
     const candidates = allocations.filter((item) => item.count < cap);
     const pool = candidates.length ? candidates : allocations;
@@ -74,7 +76,7 @@ function typeDistribution(count, section, programmingRole, mode) {
   return distribution;
 }
 
-export function createAssessmentBlueprint(jobAnalysis, mode) {
+export function createAssessmentBlueprint(jobAnalysis, mode, performanceRecords = []) {
   const settings = modeSettings[mode];
   if (!settings) throw new Error(`Unsupported assessment mode: ${mode}`);
   const general = jobAnalysis.recommendedSections.filter((section) => section.category === 'general');
@@ -83,25 +85,60 @@ export function createAssessmentBlueprint(jobAnalysis, mode) {
   if (!general.length) generalTotal = 0;
   if (!specific.length) generalTotal = settings.total;
   const specificTotal = settings.total - generalTotal;
-  const allocations = [
+  const performance = new Map(performanceRecords.map((item) => [item.normalizedSectionKey, item]));
+  const adaptiveWeight = (section) => {
+    const record = performance.get(normalizeSectionName(section.name));
+    return priorityWeight[section.priority] * (record ? effectiveWeaknessWeight(record.proficiencyScore, record.attempts) : 1);
+  };
+  const baseline = [
     ...allocateByWeight(generalTotal, general, (section) => priorityWeight[section.priority]),
     ...allocateByWeight(specificTotal, specific, (section) => priorityWeight[section.priority]),
+  ];
+  const baselineCounts = new Map(baseline.map(({ entry, count }) => [normalizeSectionName(entry.name), count]));
+  const allocations = [
+    ...allocateByWeight(generalTotal, general, adaptiveWeight),
+    ...allocateByWeight(specificTotal, specific, adaptiveWeight),
   ];
   const difficultyTotals = integerDistribution(settings.total, settings.difficulty);
   const difficultySequence = smoothSequence(difficultyTotals);
   const programmingRole = isProgrammingRole(jobAnalysis);
   let offset = 0;
   return allocations.map(({ entry, count }) => {
+    const normalizedSectionKey = normalizeSectionName(entry.name);
+    const record = performance.get(normalizedSectionKey);
+    const effectiveWeight = record ? effectiveWeaknessWeight(record.proficiencyScore, record.attempts) : 1;
     const slice = difficultySequence.slice(offset, offset + count);
     offset += count;
     return {
       section: entry.name,
+      normalizedSectionKey,
       category: entry.category,
       questionCount: count,
+      baselineQuestionCount: baselineCounts.get(normalizedSectionKey) || count,
+      adaptation: {
+        basePriority: entry.priority,
+        proficiencyScore: record?.proficiencyScore,
+        effectiveWeaknessWeight: effectiveWeight,
+        finalWeight: priorityWeight[entry.priority] * effectiveWeight,
+        influenced: count !== (baselineCounts.get(normalizedSectionKey) || count),
+      },
       difficultyDistribution: Object.fromEntries(['easy', 'medium', 'hard'].map((level) => [level, slice.filter((item) => item === level).length])),
       questionTypeDistribution: typeDistribution(count, entry, programmingRole, mode),
     };
   });
+}
+
+export function publicBlueprintPreview(blueprint, mode) {
+  return {
+    mode,
+    totalQuestions: getModeQuestionCount(mode),
+    adaptive: blueprint.some((item) => item.adaptation?.influenced),
+    sections: blueprint.map((item) => ({
+      section: item.section, category: item.category, questionCount: item.questionCount,
+      adaptiveInfluenced: Boolean(item.adaptation?.influenced),
+      needsMorePractice: Number(item.adaptation?.proficiencyScore) < 60,
+    })),
+  };
 }
 
 export function getModeQuestionCount(mode) {

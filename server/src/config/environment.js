@@ -22,5 +22,8 @@ export const env = Object.freeze({
     model: process.env.OPENROUTER_MODEL,
     baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
     timeoutMs: Number(process.env.OPENROUTER_TIMEOUT_MS || 120_000),
+    questionMaxTokens: Number(process.env.OPENROUTER_QUESTION_MAX_TOKENS || 4_000),
+    questionBatchSize: Number(process.env.AI_QUESTION_BATCH_SIZE || 3),
+    feedbackModel: process.env.OPENROUTER_FEEDBACK_MODEL || process.env.OPENROUTER_MODEL,
   }),
 });

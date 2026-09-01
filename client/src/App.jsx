@@ -4,6 +4,8 @@ import AssessmentPreviewPage from './pages/AssessmentPreviewPage.jsx';
 import AssessmentSetupPage from './pages/AssessmentSetupPage.jsx';
 import AssessmentPage from './pages/AssessmentPage.jsx';
 import AssessmentSubmittedPage from './pages/AssessmentSubmittedPage.jsx';
+import AssessmentResultsPage from './pages/AssessmentResultsPage.jsx';
+import AssessmentReviewPage from './pages/AssessmentReviewPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import HomePage from './pages/HomePage.jsx';
 import JobDetailPage from './pages/JobDetailPage.jsx';
@@ -51,6 +53,8 @@ export default function App() {
             <Route path="/assessments/:assessmentId" element={<AssessmentPreviewPage />} />
             <Route path="/assessments/:assessmentId/take" element={<AssessmentPage />} />
             <Route path="/assessments/:assessmentId/submitted" element={<AssessmentSubmittedPage />} />
+            <Route path="/assessments/:assessmentId/results" element={<AssessmentResultsPage />} />
+            <Route path="/assessments/:assessmentId/results/review" element={<AssessmentReviewPage />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

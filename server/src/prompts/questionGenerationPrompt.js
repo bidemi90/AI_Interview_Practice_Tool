@@ -25,6 +25,8 @@ export function buildQuestionGenerationMessages(jobAnalysis, section, repairCont
     questionCount: section.questionCount,
     questionTypeDistribution: section.questionTypeDistribution,
     difficultyDistribution: section.difficultyDistribution,
+    batchNumber: section.batchNumber,
+    totalBatches: section.totalBatches,
   };
   const repairText = repairContext
     ? `\nThe prior output was invalid. Generate a completely fresh corrected set. Safe validation feedback: ${repairContext.slice(0, 500)}`
