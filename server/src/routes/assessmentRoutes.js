@@ -1,0 +1,20 @@
+import { Router } from 'express';
+import { create, getOne, getQuestion, getQuestionAtIndex, getQuestions, putAnswer, start, status, submit, updatePosition } from '../controllers/assessmentController.js';
+import { authenticate } from '../middleware/authenticate.js';
+import { validateBody } from '../middleware/validateRequest.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+import { createAssessmentSchema, saveAnswerSchema, updatePositionSchema } from '../validators/assessmentSchemas.js';
+
+const router = Router();
+router.use(asyncHandler(authenticate));
+router.post('/', validateBody(createAssessmentSchema), asyncHandler(create));
+router.get('/:id/status', asyncHandler(status));
+router.get('/:id/questions', asyncHandler(getQuestions));
+router.post('/:id/start', asyncHandler(start));
+router.get('/:id/questions/by-index/:index', asyncHandler(getQuestionAtIndex));
+router.get('/:id/questions/:questionId', asyncHandler(getQuestion));
+router.put('/:id/answers/:questionId', validateBody(saveAnswerSchema), asyncHandler(putAnswer));
+router.patch('/:id/progress', validateBody(updatePositionSchema), asyncHandler(updatePosition));
+router.post('/:id/submit', asyncHandler(submit));
+router.get('/:id', asyncHandler(getOne));
+export default router;

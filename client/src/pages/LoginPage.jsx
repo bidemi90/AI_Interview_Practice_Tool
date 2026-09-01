@@ -1,0 +1,45 @@
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import FormError from '../components/FormError.jsx';
+import { useAuth } from '../hooks/useAuth.js';
+
+export default function LoginPage() {
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [form, setForm] = useState({ email: '', password: '' });
+  const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await login(form);
+      navigate(location.state?.from?.pathname || '/dashboard', { replace: true });
+    } catch (requestError) {
+      setError(requestError);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section className="mx-auto max-w-md px-6 py-16">
+      <h1 className="text-3xl font-bold text-slate-950">Welcome back</h1>
+      <p className="mt-2 text-slate-600">Sign in to continue your interview preparation.</p>
+      <form className="mt-8 space-y-5" onSubmit={submit}>
+        <FormError error={error} />
+        <label className="block text-sm font-medium text-slate-700">Email
+          <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" type="email" autoComplete="email" required value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
+        </label>
+        <label className="block text-sm font-medium text-slate-700">Password
+          <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" type="password" autoComplete="current-password" required minLength={8} value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
+        </label>
+        <button className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 font-semibold text-white disabled:opacity-60" disabled={submitting}>{submitting ? 'Signing in…' : 'Sign in'}</button>
+      </form>
+      <p className="mt-6 text-sm text-slate-600">New here? <Link className="font-semibold text-indigo-600" to="/register">Create an account</Link></p>
+    </section>
+  );
+}
